@@ -2,11 +2,11 @@
 
 ## 1. Epic Architecture Overview
 
-Epic dibangun sebagai aplikasi web Next.js App Router satu layanan. UI, API server, autentikasi, logika domain, dan integrasi data berjalan dalam satu aplikasi TypeScript. Satu Google Spreadsheet menjadi sumber data bisnis utama, dengan tab terpisah untuk pemain, sesi, peserta, pembayaran, pengeluaran, penyesuaian kas, dan konfigurasi.
+Epic dibangun sebagai aplikasi web Next.js App Router satu layanan dan ditargetkan untuk di-deploy ke Vercel. UI, API server, autentikasi, logika domain, dan integrasi data berjalan dalam satu aplikasi TypeScript. Satu Google Spreadsheet menjadi sumber data bisnis utama, dengan tab terpisah untuk pemain, sesi, peserta, pembayaran, pengeluaran, penyesuaian kas, dan konfigurasi.
 
 Pengguna masuk menggunakan Google OAuth. Operasi terhadap spreadsheet dilakukan di server dengan token OAuth pengguna, sehingga Google Sheets tetap menegakkan izin berbagi yang sudah diberikan pemilik spreadsheet. Setiap permintaan data memverifikasi sesi pengguna; permintaan ke spreadsheet yang tidak diizinkan ditolak. Penulisan menunggu konfirmasi Google Sheets sebelum UI menampilkan status berhasil.
 
-Arsitektur sengaja tidak memakai database, cache, antrean, atau worker terpisah pada MVP. Skala awal adalah satu PB dan satu spreadsheet. Untuk menjaga integritas data finansial, aplikasi menggunakan penulisan terurut dan idempotensi; deployment MVP dibatasi pada satu instance aktif. Google Sheets bukan database transaksional, sehingga dukungan banyak instance atau volume tinggi memerlukan keputusan arsitektur lanjutan.
+Arsitektur sengaja tidak memakai database, cache, antrean, atau worker terpisah pada MVP. Skala awal adalah satu PB dan satu spreadsheet. Runtime Vercel dapat menangani permintaan pada instance berbeda, sehingga aplikasi tidak boleh menganggap tersedia satu proses aktif atau menggunakan lock dalam memori sebagai koordinasi global. Strategi penulisan terurut dan idempotensi yang aman lintas instance harus diputuskan sebelum penulisan finansial digunakan. Google Sheets bukan database transaksional, sehingga konsistensi lintas instance dan volume tinggi memerlukan validasi khusus.
 
 ### Batas konteks domain
 
@@ -28,15 +28,12 @@ flowchart LR
   end
 
   subgraph DEPLOY["Lapisan Infrastruktur dan Deployment"]
-    Ingress["HTTPS ingress<br/>Load balancer terkelola atau reverse proxy"]
-    subgraph CONTAINER["Satu container Docker · satu instance aktif"]
-      subgraph APP["Lapisan Aplikasi · Next.js App Router"]
-        UI["Halaman dan komponen UI"]
-        Routes["Route Handlers<br/>/api/*"]
-        OAuthCallback["Google OAuth callback"]
-        Session["Manajemen sesi aman"]
-      end
-
+    Vercel["Vercel<br/>HTTPS, routing, deployment"]
+    subgraph APP["Aplikasi Next.js App Router · runtime terkelola Vercel"]
+      UI["Halaman dan komponen UI"]
+      Routes["Route Handlers<br/>/api/*"]
+      OAuthCallback["Google OAuth callback"]
+      Session["Manajemen sesi aman"]
       subgraph SERVICES["Lapisan Layanan dan Domain"]
         Guard["AuthN dan pemeriksaan akses spreadsheet"]
         PlayerSvc["Player service"]
@@ -47,7 +44,7 @@ flowchart LR
         Validation["Validasi input dan aturan domain"]
       end
     end
-    Secrets["Konfigurasi deployment<br/>OAuth client secret, session secret,<br/>spreadsheet ID"]
+    Secrets["Vercel Environment Variables<br/>OAuth client secret, session secret,<br/>spreadsheet ID"]
   end
 
   subgraph EXTERNAL["Lapisan Data dan Integrasi Eksternal"]
@@ -57,8 +54,8 @@ flowchart LR
     WhatsApp["WhatsApp Web / aplikasi<br/>share link atau Web Share API"]
   end
 
-  Browser -->|"HTTPS"| Ingress
-  Ingress --> UI
+  Browser -->|"HTTPS"| Vercel
+  Vercel --> UI
   UI -->|"Permintaan data / mutasi"| Routes
   Routes --> Guard
   Guard -->|"Validasi token / identitas"| Session
@@ -85,7 +82,7 @@ flowchart LR
   ReportSvc -->|"Teks laporan"| UI
   UI -->|"Bagikan laporan secara manual"| WhatsApp
 
-  Secrets -.-> CONTAINER
+  Secrets -.-> APP
 
   classDef user fill:#e8f0fe,stroke:#4285f4,color:#202124
   classDef app fill:#e6f4ea,stroke:#34a853,color:#202124
@@ -96,7 +93,7 @@ flowchart LR
   class UI,Routes,OAuthCallback,Session app
   class Guard,PlayerSvc,SessionSvc,LedgerSvc,ReportSvc,SheetsRepo,Validation domain
   class GoogleOAuth,SheetsAPI,Spreadsheet,WhatsApp external
-  class Ingress,Secrets infra
+  class Vercel,Secrets infra
 ```
 
 ### Alur utama
@@ -145,10 +142,11 @@ ID dibuat oleh aplikasi dan disimpan sebagai nilai, bukan nomor baris. Nomor bar
 - **Validasi input terpusat:** skema validasi bertipe untuk harga dan nominal nonnegatif, pemain/sesi wajib terdaftar, dan pencegahan peserta duplikat. Zod dapat dipakai bila disetujui saat implementasi.
 - **Logika finansial deterministik:** fungsi teruji untuk biaya sesi, saldo pemain, laporan sesi, dan saldo PB; UI tidak menjadi sumber perhitungan utama.
 - **Jurnal transaksi append-only:** pembayaran dan pengeluaran ditambahkan sebagai baris transaksi baru; koreksi dilakukan lewat transaksi koreksi atau prosedur yang mempertahankan jejak, bukan menghapus riwayat.
-- **Idempotensi dan serialisasi:** setiap mutasi finansial memiliki operation ID yang stabil. Satu instance aktif mengurutkan operasi tulis dan memeriksa ID yang telah tersimpan sebelum mengulang mutasi.
+- **Idempotensi dan koordinasi tulis:** setiap mutasi finansial memiliki operation ID yang stabil. Strategi koordinasi yang berlaku lintas runtime Vercel harus dipilih dan divalidasi sebelum implementasi penulisan finansial.
 - **Perilaku gagal yang jelas:** tampilkan error Google API dan pertahankan input yang belum tersimpan untuk dicoba ulang; jangan memberi status sukses berbentuk fallback.
 - **Berbagi laporan:** pembentukan teks laporan dan Web Share API atau tautan WhatsApp dengan teks yang dienkode; pengguna harus melakukan aksi berbagi secara eksplisit.
-- **Konfigurasi deployment:** rahasia OAuth, kunci enkripsi sesi, dan spreadsheet ID di environment/secret manager deployment, tidak di repository atau Google Sheet.
+- **Konfigurasi deployment:** rahasia OAuth, kunci enkripsi sesi, dan spreadsheet ID disimpan sebagai Vercel Environment Variables yang sesuai dengan environment deployment; rahasia tidak disimpan di repository atau Google Sheet. URI callback OAuth harus cocok dengan domain deployment.
+- **Kompatibilitas runtime Vercel:** sesi dan token OAuth harus dapat digunakan dengan aman tanpa mengandalkan memori lokal suatu instance; pemilihan penyimpanan sesi/token harus menjadi bagian implementasi.
 - **Pengujian:** unit test untuk kalkulasi domain; integration test repository dengan Google API mock; acceptance test untuk alur izin, pembayaran kurang/lebih, dan laporan.
 
 ### Konsistensi dan batasan Google Sheets
@@ -156,9 +154,9 @@ ID dibuat oleh aplikasi dan disimpan sebagai nilai, bukan nomor baris. Nomor bar
 - Setiap perubahan finansial dicatat sebagai transaksi terlebih dahulu; saldo diturunkan dari tagihan dan jurnal pembayaran/pengeluaran.
 - Pengiriman ke Google Sheets bersifat sinkron terhadap permintaan pengguna. Tidak ada antrean offline atau worker latar pada MVP.
 - Operasi yang dapat ditulis dalam satu request batch harus dikelompokkan, tetapi Google Sheets tidak menyediakan transaksi database umum, batasan unik, atau locking lintas instance.
-- Untuk MVP, jalankan satu instance aktif dan serialisasikan mutasi pada instance tersebut. Kunci idempotensi yang disimpan bersama transaksi membantu mencegah duplikasi saat retry.
+- Vercel dapat menjalankan permintaan pada instance runtime berbeda; serialisasi dalam memori satu instance tidak menjamin koordinasi lintas permintaan atau lintas instance. Penulisan finansial memerlukan strategi koordinasi dan idempotensi yang telah divalidasi untuk target deployment ini sebelum dipakai.
 - Mutasi spreadsheet manual di luar aplikasi tidak memiliki notifikasi push yang dijamin; data dibaca ulang dari Sheets pada permintaan aplikasi berikutnya.
-- Jangan menambah replica aplikasi atau menjalankan di lingkungan serverless multi-instance tanpa mekanisme koordinasi lintas instance dan evaluasi ulang konsistensi.
+- Jangan menganggap konfigurasi deployment membatasi aplikasi ke satu instance aktif. Jika strategi aman lintas instance tidak dapat dibuktikan, penulisan finansial harus ditahan atau target deployment/arsitektur harus ditinjau ulang.
 - Jika skala atau kebutuhan ketersediaan melampaui batas ini, perubahan dari Google Sheets ke database transaksional memerlukan keputusan produk/arsitektur baru karena bertentangan dengan persyaratan satu spreadsheet sebagai sumber data utama.
 
 ## 4. Technology Stack
@@ -171,7 +169,7 @@ ID dibuat oleh aplikasi dan disimpan sebagai nilai, bukan nomor baris. Nomor bar
 - **Autentikasi dan izin:** Google OAuth 2.0 dengan akses delegated per pengguna ke Google Sheets API. Stack Auth tidak digunakan sebagai pengganti pemeriksaan izin spreadsheet, karena identitas Stack Auth saja tidak membuktikan akses pengguna ke spreadsheet.
 - **Penyimpanan bisnis:** Google Sheets API v4, satu spreadsheet dengan tab yang ditentukan di atas.
 - **Validasi:** validasi skema TypeScript di server; Zod merupakan opsi, bukan dependency yang sudah terpasang.
-- **Deployment:** satu Docker image aplikasi Next.js. Dapat dijalankan pada VM/container terkelola untuk self-hosted atau SaaS; gunakan reverse proxy/load balancer dan TLS pada lapisan deployment.
+- **Deployment:** Vercel sebagai target hosting aplikasi Next.js. Gunakan Vercel Environment Variables untuk konfigurasi rahasia dan pastikan domain produksi serta URI callback OAuth dikonfigurasi. Docker/self-hosting bukan target deployment MVP saat ini.
 - **Berbagi:** Web Share API atau tautan WhatsApp Web/Deep Link dengan teks laporan yang disiapkan aplikasi.
 - **Pengujian:** framework test TypeScript yang dipilih saat implementasi, mencakup unit domain, integrasi API Google yang dimock, dan alur browser.
 
@@ -186,8 +184,8 @@ ID dibuat oleh aplikasi dan disimpan sebagai nilai, bukan nomor baris. Nomor bar
 
 ## 5. Technical Value
 
-**Tinggi.** Arsitektur membentuk satu jalur data yang mudah dipahami, menjaga Google Sheets sebagai referensi utama, serta memisahkan aturan biaya dan saldo dari UI agar dapat diuji. Batasan akses delegated OAuth mencegah aplikasi memberi akses melalui kredensial bersama yang melewati izin spreadsheet. Batas satu instance dan pencatatan transaksi yang dapat ditelusuri mengurangi risiko konsistensi untuk skala MVP, sambil membuat keterbatasan Sheets terlihat sejak awal.
+**Tinggi.** Arsitektur membentuk satu jalur data yang mudah dipahami, menjaga Google Sheets sebagai referensi utama, serta memisahkan aturan biaya dan saldo dari UI agar dapat diuji. Batasan akses delegated OAuth mencegah aplikasi memberi akses melalui kredensial bersama yang melewati izin spreadsheet. Batasan Vercel dan Google Sheets ditampilkan secara eksplisit, sehingga strategi koordinasi lintas instance menjadi prasyarat yang dapat divalidasi sebelum implementasi finansial.
 
 ## 6. T-Shirt Size Estimate
 
-**L (Large).** Walaupun deployment hanya satu aplikasi dan satu sumber data, epic mencakup OAuth Google dengan akses delegated, integrasi Sheets, pemodelan transaksi, saldo lintas sesi, perlindungan dari retry, empat area UI, laporan, dan pengujian finansial. Estimasi mengasumsikan satu PB, satu spreadsheet, satu mata uang, dan satu instance aktif. Multi-tenant, offline mode, pemrosesan pembayaran digital, serta deployment multi-instance tidak termasuk estimasi ini.
+**L (Large).** Walaupun deployment hanya satu aplikasi dan satu sumber data, epic mencakup OAuth Google dengan akses delegated, integrasi Sheets, pemodelan transaksi, saldo lintas sesi, perlindungan dari retry, empat area UI, laporan, dan pengujian finansial. Estimasi mengasumsikan satu PB, satu spreadsheet, satu mata uang, dan deployment Vercel; strategi koordinasi lintas instance masih harus ditentukan melalui spike. Multi-tenant, offline mode, dan pemrosesan pembayaran digital tidak termasuk estimasi ini.

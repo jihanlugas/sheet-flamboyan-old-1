@@ -154,6 +154,7 @@ Pemain yang terdaftar dan mengikuti sesi. Pada MVP, pemain merupakan subjek data
 - **Keterlacakan:** Setiap baris transaksi menyimpan identitas/rujukan yang cukup untuk mengetahui pemain, sesi (jika ada), tanggal, nominal, dan jenis transaksi.
 - **Keandalan:** Kegagalan Google Sheets API, kuota, atau koneksi harus dilaporkan dengan jelas; aplikasi tidak boleh menampilkan keberhasilan palsu atau berpindah diam-diam ke penyimpanan lain.
 - **Kinerja:** Operasi baca/tulis umum harus memberi respons yang layak untuk penggunaan satu PB skala komunitas; sasaran awal waktu respons p95 adalah ≤ 3 detik pada kondisi layanan Google Sheets normal.
+- **Deployment:** Aplikasi ditargetkan untuk di-deploy ke Vercel. Integrasi OAuth dan penulisan Google Sheets harus tetap aman dan benar pada runtime Vercel yang dapat menjalankan permintaan pada instance berbeda; aplikasi tidak boleh mengandalkan state atau lock di memori satu proses.
 - **Kemudahan penggunaan:** Alur input harus nyaman digunakan di perangkat desktop maupun ponsel, terutama untuk mencatat peserta dan pembayaran.
 - **Aksesibilitas:** Formulir, status pembayaran, pesan kesalahan, dan navigasi dapat digunakan dengan keyboard dan pembaca layar dasar; status tidak dibedakan hanya dengan warna.
 - **Privasi:** Aplikasi hanya meminta izin Google yang diperlukan untuk identitas pengguna dan akses spreadsheet yang dipilih. Data pemain tidak dibagikan melalui WhatsApp kecuali sebagai bagian dari laporan yang secara sengaja dibagikan pengelola.
