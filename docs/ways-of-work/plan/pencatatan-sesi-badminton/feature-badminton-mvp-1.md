@@ -86,11 +86,11 @@ This plan delivers the badminton-session and PB-finance MVP in the existing Next
 
 - **Objective**: Provide a small, consistent set of visual and interactive primitives for all feature pages.
 - **Scope**:
-  - Use the already-installed Tailwind CSS 4 CSS-first configuration; define semantic color, typography, spacing, border, and focus tokens in `app/globals.css`.
-  - Reuse the current Geist font setup unless a project decision changes it; define heading, body, label, and helper-text styles.
+  - Use project-owned Tailwind primitives per the completed `docs/spikes/architecture-design-system-component-strategy-spike.md`; do not add a component library for Phase 0.
+  - Use the already-installed Tailwind CSS 4 CSS-first configuration; define semantic color, typography, border, focus, and helper-text tokens in `app/globals.css`, and use Tailwind's existing spacing scale consistently.
+  - Reuse the current Geist font setup; define heading, body, label, and helper-text styles.
   - Implement only the reusable primitives required by the planned pages: Button, Input, Select, Textarea, FormField, Table, Card, StatusBadge, LoadingState, ErrorState, and EmptyState.
   - Ensure labels, validation messages, keyboard focus, contrast, responsive overflow, and non-color status cues are included.
-  - Follow the decision recorded in `docs/spikes/architecture-design-system-component-strategy-spike.md`; do not adopt a component library or add project-owned primitives until that comparison is complete.
 - **Acceptance criteria**:
   - Shared primitives have consistent states (default, hover/focus, disabled, and error where relevant).
   - Form controls have programmatic labels and visible validation/error text.
@@ -136,8 +136,9 @@ This plan delivers the badminton-session and PB-finance MVP in the existing Next
 
 - **Objective**: Make project and UI changes repeatably verifiable before feature implementation begins.
 - **Scope**:
-  - Add Vitest and `@playwright/test` as development dependencies using Yarn 1; add `vitest.config.mts`, `playwright.config.ts`, and `test:unit`/`test:e2e` scripts.
-  - Add `tests/unit/smoke.test.ts` and `tests/e2e/smoke.spec.ts` for loading the application shell, navigating to the planned pages, and verifying visible sample-data labeling.
+  - Add Vitest, Vite, `@vitejs/plugin-react`, jsdom, Testing Library, and `@playwright/test` as development dependencies using Yarn 1; add `vitest.config.mts`, `playwright.config.ts`, and `test:unit`/`test:e2e` scripts.
+  - Add `tests/unit/smoke.test.tsx` and `tests/e2e/smoke.spec.ts` for loading the application shell, navigating to the planned pages, and verifying visible sample-data labeling.
+  - Resolve the existing `@/*` alias with Vite's native `resolve.tsconfigPaths` option in the Vitest configuration.
   - Configure Playwright's local `webServer`; keep browser tests on local development/test processes and use mock fixtures. Do not deploy to Vercel as part of development or test setup.
   - Run the foundation lint, unit, browser, and production-build gates and record outcomes.
 - **Acceptance criteria**:
@@ -153,6 +154,8 @@ This plan delivers the badminton-session and PB-finance MVP in the existing Next
 - The application has a documented folder/environment/code-convention baseline, responsive design primitives and shell, and working page skeletons for every defined feature route.
 - Skeleton pages use no backend/API integration; fixtures are visibly labeled and isolated from feature services.
 - All feature implementation tasks (`TASK-005` through `TASK-026`) are blocked until this phase is complete.
+
+**Phase 0 status**: Complete. `yarn lint`, `yarn test:unit`, `yarn test:e2e`, and `yarn build` all pass locally. Browser tests cover all ten planned routes, desktop/mobile navigation paths, a narrow-screen table scroll region without page overflow, and no `/api/` or external requests while navigating the sample UI.
 
 ### Implementation Phase 1 — Resolve technical gates
 
