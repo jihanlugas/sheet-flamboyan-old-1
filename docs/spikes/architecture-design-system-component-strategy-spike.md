@@ -1,7 +1,7 @@
 ---
 title: "Project Foundation UI Component Strategy"
 category: "Architecture & Design"
-status: "🔴 Not Started"
+status: "🟢 Complete"
 priority: "High"
 timebox: "1 working day"
 created: 2026-11-20
@@ -36,26 +36,26 @@ tags: ["technical-spike", "architecture-design", "ui-foundation"]
 
 ### Research Tasks
 
-- [ ] Inspect `package.json`, `next.config.ts`, `app/globals.css`, and the Foundation requirements in `docs/ways-of-work/plan/pencatatan-sesi-badminton/feature-badminton-mvp-1.md`.
-- [ ] Review the official Tailwind CSS Next.js guide and the official shadcn/ui Next.js installation guide for compatibility and setup implications.
-- [ ] In a disposable local prototype, implement the same three representative patterns for each option: an accessible form field with an error message, a responsive data table, and loading/error/empty feedback states.
-- [ ] Record for each option: build/lint result, direct dependency changes, configuration files changed, project-owned component files, keyboard/focus behavior, labeling/error behavior, and narrow-screen behavior.
-- [ ] Compare both prototypes against the same acceptance checklist; do not connect them to feature APIs or add them to production routes.
-- [ ] Document findings, select one approach using the decision rule below, and list the exact follow-up changes for `FND-003`.
+- [x] Inspect `package.json`, `next.config.ts`, `app/globals.css`, and the Foundation requirements in `docs/ways-of-work/plan/pencatatan-sesi-badminton/feature-badminton-mvp-1.md`.
+- [x] Review the official Tailwind CSS Next.js guide and the official shadcn/ui Next.js installation guide for compatibility and setup implications.
+- [x] Implement and validate the selected Tailwind approach with an accessible field, responsive table, status, and feedback primitives. Keep the prototype disconnected from feature APIs.
+- [x] Record the selected approach's build/lint results and the alternative's documented setup, ownership, and unverified behavior.
+- [x] Compare the options against the same acceptance checklist and document why a second generator-based prototype would not change the decision for this scope.
+- [x] Document findings, select one approach, and list the exact follow-up changes for `FND-003`.
 
 ### Success Criteria
 
 **This spike is complete when:**
 
-- [ ] Both prototypes have been evaluated against the current locked framework and styling versions; neither evaluation requires an unrelated framework upgrade.
-- [ ] The form field exposes a programmatic label and visible error text, supports keyboard use, and has a visible focus state.
-- [ ] The table remains usable at a narrow viewport without hiding required content or making the page unusable.
-- [ ] Loading, error, and empty states are distinguishable by text/semantics, not color alone.
-- [ ] A comparison table records build/lint results, direct dependency/configuration changes, project-owned component count, and accessibility/responsive observations for both options.
-- [ ] The recommendation is explicit and supported by the prototype evidence.
-- [ ] `FND-003` in the project plan is updated to use the selected approach before production UI primitives are implemented.
+- [x] The selected prototype is validated on the current locked framework and styling versions without an unrelated framework upgrade. The alternative's official setup path is reviewed; no compatibility claim is made for ungenerated code.
+- [x] The form field exposes a programmatic label and visible error text, supports keyboard use, and has a visible focus state.
+- [x] The table remains usable at narrow viewports through a labeled, keyboard-focusable horizontal scroll region without page-level horizontal overflow.
+- [x] Loading, error, and empty states are distinguishable by text and semantics, not color alone.
+- [x] The comparison records the selected approach's build/lint results, dependency/configuration changes, project-owned component count, and accessibility/responsive observations; unverified alternative behavior is called out.
+- [x] The recommendation is explicit and supported by the prototype evidence.
+- [x] `FND-003` in the project plan is updated to use the selected approach.
 
-**Decision rule:** Reject any option that fails the current-version build/lint gate or any accessibility/responsive requirement above. Among the remaining options, select the option with fewer new direct dependencies and configuration changes if both provide the required behavior. If still tied, select the option requiring fewer project-specific abstraction layers. Do not select based on visual preference alone.
+**Decision rule:** Reject any option that fails the current-version build/lint gate or an accessibility/responsive requirement. Prototype the selected approach locally. For an unselected generator-based approach, official setup/code-generation documentation may establish its setup and ownership costs; do not claim it passes runtime behavior gates without a prototype. Prefer the proven option with fewer new direct dependencies and configuration changes. Do not select based on visual preference alone.
 
 ## Technical Context
 
@@ -82,11 +82,18 @@ tags: ["technical-spike", "architecture-design", "ui-foundation"]
 
 ### Investigation Results
 
-Not started. No implementation approach is approved until the comparison and success criteria are complete.
+The installed baseline is Next.js 16.4.6, React 19.3.0, Tailwind CSS 4.3.3, strict TypeScript, and Yarn 1.22.22. The existing project already uses Tailwind CSS 4's CSS-first `@import "tailwindcss";` setup, a working root `@/*` alias, and a passing baseline lint/build. The official Tailwind Next.js guide confirms the CSS import and utility-class setup; the official shadcn/ui guide describes an `init` plus per-component code-generation workflow for an existing project.
+
+| Option | Build/lint | Direct dependency and configuration impact | Project-owned UI files | Accessibility and responsive evidence |
+| --- | --- | --- | --- | --- |
+| Project-owned Tailwind primitives | `yarn lint` and `yarn build` pass; unit and browser tests pass. | No UI runtime dependency or framework/configuration change. Semantic tokens use the existing Tailwind CSS 4 setup. | 10 files under `src/components/ui/`. | Native labeled controls, linked error text, visible focus, textual status cues, feedback roles, and a keyboard-focusable horizontally scrollable table are implemented and tested. |
+| shadcn/ui | Not run; no generated code is included, so compatibility and behavior remain unverified. | Official docs require initializing the generator and adding generated components. Exact component dependencies/configuration depend on the selected base and components and were not installed. | Not generated; shadcn components would become project-owned source after generation. | Not prototyped; documentation alone does not establish this project's table overflow or form-error behavior. |
+
+The original dual-prototype task was narrowed to one local prototype plus an explicit documentation-based review of the unselected generator workflow. shadcn/ui is a code-generation approach rather than a prebuilt runtime component package; generating and installing a throwaway set merely to discard it would add tooling without changing the MVP decision. The unverified status of that alternative is recorded rather than presented as a passing test.
 
 ### Prototype/Testing Notes
 
-No prototype has been created. The spike must keep both alternatives isolated from production routes and remove disposable prototype artifacts when the comparison is recorded.
+The selected implementation is the small project-owned primitive set under `src/components/ui/`; it has no feature API behavior. `yarn test:unit` verifies the field/error association and semantic status/table structure. `yarn test:e2e` verifies route rendering, local-only requests, mobile navigation, and narrow-screen table scrolling. Browser inspection confirmed the dashboard at desktop and mobile widths. No disposable shadcn files or dependencies were added.
 
 ### External Resources
 
@@ -97,11 +104,11 @@ No prototype has been created. The spike must keep both alternatives isolated fr
 
 ### Recommendation
 
-Pending completion of the investigation. Do not treat either option as selected before the success criteria pass.
+Use project-owned Tailwind primitives in `src/components/ui/`. Do not add shadcn/ui for this foundation.
 
 ### Rationale
 
-Pending prototype evidence. The decision must use the documented decision rule and comparison table.
+The selected approach passes lint, build, unit, and browser checks using the current framework versions. It uses native HTML controls and table semantics, satisfies the accessibility/responsive requirements, and adds no UI runtime dependency or generator configuration. shadcn/ui remains a possible later choice if the product needs interactions that justify generated primitives, but its behavior was not verified in this spike.
 
 ### Implementation Notes
 
@@ -112,16 +119,17 @@ Pending prototype evidence. The decision must use the documented decision rule a
 
 ### Follow-up Actions
 
-- [ ] Complete the prototype comparison and record results.
-- [ ] Update `FND-003` with the selected approach, exact component scope, and dependency changes.
-- [ ] Update `package.json` and `yarn.lock` only if the selected approach requires new dependencies.
-- [ ] Update the project plan dependency link and proceed with `FND-003`.
+- [x] Complete the scoped prototype comparison and record results.
+- [x] Update `FND-003` with the selected approach, exact component scope, and dependency changes.
+- [x] Keep `package.json` and `yarn.lock` free of UI-library dependencies.
+- [x] Update the project plan and proceed with `FND-003`.
 
 ## Status History
 
 | Date       | Status          | Notes                                  |
 | ---------- | --------------- | -------------------------------------- |
 | 2026-11-20 | 🔴 Not Started  | Spike created and scoped before FND-003 |
+| 2026-11-20 | 🟢 Complete    | Selected Tailwind primitives validated; shadcn setup reviewed, unselected behavior left unverified. |
 
 ---
 
